@@ -3,6 +3,8 @@ import Recorder from "@/components/Recorder";
 import Transcriber from "@/components/Transcriber";
 import UIControls from "@/components/UIControls";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -10,34 +12,37 @@ export default function Home() {
   const [transcript, setTranscript] = useState<string[]>([]);
   const [latency, setLatency] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [microphoneDisconnected, setMicrophoneDisconnected] = useState(false);
   
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<any>(null);
   const retryCountRef = useRef(0);
+  const sessionStartTimeRef = useRef<number | null>(null);
   const { toast } = useToast();
 
-  // Auto-scroll to the bottom of transcript
+  // Reset session time when recording starts
   useEffect(() => {
-    if (transcriptContainerRef.current && isRecording) {
-      transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
+    if (isRecording && !sessionStartTimeRef.current) {
+      sessionStartTimeRef.current = Date.now();
+    } else if (!isRecording) {
+      sessionStartTimeRef.current = null;
     }
-  }, [transcript, isRecording]);
+  }, [isRecording]);
 
   const handleStartRecording = async () => {
     try {
       setError(null);
+      setMicrophoneDisconnected(false);
       setStatus("Recording...");
       setIsRecording(true);
       retryCountRef.current = 0;
-    } catch (err: any) {
-      setError(err.message || "Failed to start recording");
-      setIsRecording(false);
-      setStatus("Ready");
+      
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: err.message || "Failed to start recording"
+        title: "Recording started",
+        description: "SermoCast is now recording audio in real-time",
       });
+    } catch (err: any) {
+      handleRecordingError(err);
     }
   };
 
@@ -46,18 +51,33 @@ export default function Home() {
       setStatus("Complete");
       setIsRecording(false);
       setLatency(0);
+      
+      // Calculate total recording time
+      if (sessionStartTimeRef.current) {
+        const totalTimeMs = Date.now() - sessionStartTimeRef.current;
+        const minutes = Math.floor(totalTimeMs / 60000);
+        const seconds = ((totalTimeMs % 60000) / 1000).toFixed(0);
+        
+        toast({
+          title: "Recording complete",
+          description: `Total recording time: ${minutes}m ${seconds}s`,
+        });
+      } else {
+        toast({
+          title: "Recording stopped",
+        });
+      }
+      
+      sessionStartTimeRef.current = null;
     } catch (err: any) {
-      setError(err.message || "Failed to stop recording");
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: err.message || "Failed to stop recording"
-      });
+      handleRecordingError(err, "stop");
     }
   };
 
   const handleTranscriptionUpdate = (text: string) => {
-    setTranscript(prev => [...prev, text]);
+    if (text.trim()) {
+      setTranscript(prev => [...prev, text]);
+    }
   };
 
   const handleLatencyUpdate = (ms: number) => {
@@ -65,20 +85,33 @@ export default function Home() {
   };
 
   const handleTranscriptionError = (err: Error) => {
-    if (retryCountRef.current < 3) {
+    console.error("Transcription error:", err);
+    
+    if (err.message.includes("Microphone disconnected")) {
+      setMicrophoneDisconnected(true);
+      setError("Microphone disconnected. Please reconnect your microphone and try again.");
+      setIsRecording(false);
+      setStatus("Ready");
+      toast({
+        variant: "destructive",
+        title: "Microphone disconnected",
+        description: "Please check your microphone connection and try again.",
+      });
+    } else if (retryCountRef.current < 3) {
       retryCountRef.current++;
       toast({
+        variant: "default",
         title: "Transcription failed",
         description: `Retrying (${retryCountRef.current}/3)...`,
       });
     } else {
-      setError(err.message);
+      setError(`Transcription failed: ${err.message}`);
       setIsRecording(false);
       setStatus("Ready");
       toast({
         variant: "destructive",
         title: "Transcription failed",
-        description: "Max retries reached. Please try again."
+        description: "Max retries reached. Please check your internet connection and try again.",
       });
     }
   };
@@ -88,7 +121,7 @@ export default function Home() {
   };
 
   const handleCopyTranscript = () => {
-    navigator.clipboard.writeText(transcript.join('\n'));
+    navigator.clipboard.writeText(transcript.join('\n\n'));
     toast({
       title: "Copied!",
       description: "Transcript copied to clipboard"
@@ -105,6 +138,51 @@ export default function Home() {
 
   const dismissError = () => {
     setError(null);
+    setMicrophoneDisconnected(false);
+  };
+  
+  const handleRecordingError = (err: any, action: "start" | "stop" = "start") => {
+    const errorMsg = err.message || `Failed to ${action} recording`;
+    setError(errorMsg);
+    setIsRecording(false);
+    setStatus("Ready");
+    toast({
+      variant: "destructive",
+      title: "Error",
+      description: errorMsg
+    });
+  };
+  
+  const retryMicrophoneAccess = async () => {
+    if (!recorderRef.current?.retryMicrophoneAccess) return;
+    
+    setError(null);
+    setMicrophoneDisconnected(false);
+    
+    try {
+      const success = await recorderRef.current.retryMicrophoneAccess();
+      if (success) {
+        toast({
+          title: "Microphone reconnected",
+          description: "You can now start recording again"
+        });
+      } else {
+        setMicrophoneDisconnected(true);
+        setError("Failed to reconnect microphone. Please check permissions and try again.");
+        toast({
+          variant: "destructive",
+          title: "Microphone access denied",
+          description: "Please check your browser permissions"
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to reconnect microphone");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message || "Failed to reconnect microphone"
+      });
+    }
   };
 
   return (
@@ -123,27 +201,31 @@ export default function Home() {
             </div>
             
             <div className="flex items-center mt-3 sm:mt-0 space-x-4">
-              {/* Status Indicator */}
-              <div className="flex items-center">
+              {/* Status Indicator with improved visual feedback */}
+              <div className="flex items-center bg-accent/50 px-3 py-1 rounded-full">
                 <div 
                   className={`w-3 h-3 rounded-full mr-2 ${
                     status === "Ready" ? "bg-muted" : 
                     status === "Recording..." ? "bg-secondary animate-pulse" : 
-                    status === "Transcribing..." ? "bg-warning" : 
+                    status === "Transcribing..." ? "bg-warning animate-pulse" : 
                     "bg-success"
                   }`}
                 />
-                <span className="text-sm font-medium text-muted-foreground">{status}</span>
+                <span className="text-sm font-medium text-foreground">{status}</span>
               </div>
               
               {/* Latency Display */}
-              <div className="text-sm text-muted-foreground">
-                <span>{latency}ms</span> latency
+              <div className={`text-sm px-2 py-1 rounded ${
+                latency > 1500 ? "bg-warning/20 text-warning" : 
+                latency > 0 ? "bg-success/20 text-success" : 
+                "text-muted-foreground"
+              }`}>
+                <span>{latency}</span> ms latency
               </div>
             </div>
           </div>
           
-          {/* Microphone visualization placeholder */}
+          {/* Microphone visualization with improved feedback */}
           <Recorder 
             ref={recorderRef}
             isRecording={isRecording}
@@ -167,18 +249,36 @@ export default function Home() {
           transcriptRef={transcriptContainerRef}
         />
         
-        {/* Error Notification */}
+        {/* Error Notification with Retry Button for Microphone Issues */}
         {error && (
-          <div className="mt-6 bg-destructive bg-opacity-10 border-l-4 border-destructive text-destructive p-4 rounded">
+          <div className="mt-6 bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-lg shadow-sm">
             <div className="flex">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-destructive" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
+                <AlertTriangle className="h-5 w-5 text-destructive" />
               </div>
-              <div className="ml-3">
+              <div className="ml-3 flex-grow">
                 <p className="text-sm font-medium">{error}</p>
-                <button onClick={dismissError} className="mt-2 text-xs underline text-destructive hover:text-destructive">Dismiss</button>
+                <div className="mt-3 flex gap-2">
+                  {microphoneDisconnected && (
+                    <Button 
+                      onClick={retryMicrophoneAccess} 
+                      variant="outline" 
+                      size="sm"
+                      className="bg-primary/10 text-primary hover:bg-primary/20"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Reconnect Microphone
+                    </Button>
+                  )}
+                  <Button 
+                    onClick={dismissError} 
+                    variant="outline" 
+                    size="sm"
+                    className="bg-accent text-accent-foreground hover:bg-accent/80"
+                  >
+                    Dismiss
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -186,7 +286,7 @@ export default function Home() {
       </main>
       
       <footer className="mt-12 text-center text-muted-foreground text-sm">
-        <p>Church Translation App • Made with 💜</p>
+        <p>SermoCast • Real-time church translation</p>
         <p className="mt-1">Compatible with Chrome and Firefox browsers</p>
       </footer>
     </div>
