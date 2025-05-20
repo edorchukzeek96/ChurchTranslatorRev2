@@ -1,0 +1,77 @@
+Continue building the Real-Time Audio Transcription App with the following improvements and corrections:
+
+---
+
+1️⃣ Real-Time Audio Streaming Logic:
+    - Modify `Recorder.js` to:
+        - Capture audio in **5-second chunks** with a **500ms overlap**.
+        - Stream each chunk immediately to `Transcriber.js` for processing, instead of waiting for the full recording to stop.
+        - Use the `ondataavailable` event to handle chunking logic.
+    - Example of the logic:
+        - When `ondataavailable` is triggered, send the current chunk:
+            - Convert it to a `Blob`.
+            - Pass it to `Transcriber.js`.
+            - Update the UI in real-time.
+
+---
+
+2️⃣ Real-Time Transcription Logic:
+    - Update `Transcriber.js` to:
+        - Accept small **5-second chunks** and stream them asynchronously to OpenAI Whisper.
+        - Implement a **real-time text update** to `App.js`.
+        - If Whisper API fails:
+            - Retry up to **3 times**.
+            - If it still fails, show an error message in the UI.
+
+---
+
+3️⃣ UI Enhancements:
+    - In `App.js`:
+        - Auto-scroll the `<textarea>` to display the latest transcription line.
+        - Add status indicators:
+            - "🔴 Recording…" when capturing audio.
+            - "🔄 Transcribing…" when sending to OpenAI.
+            - "✅ Complete" when transcription is done.
+        - Implement a **loading spinner** during API calls.
+    - In `UIControls.js`:
+        - Start/Stop buttons should:
+            - Immediately start chunk-based recording on "Start".
+            - Immediately stop and send the last chunk on "Stop".
+
+---
+
+4️⃣ Real-Time Duplicate Removal Logic:
+    - In `TextCleaner.js`:
+        - Implement a **line-by-line comparison** with a tolerance for partial words.
+        - Automatically detect overlapping duplicates as new chunks arrive.
+        - Remove these duplicates before displaying them in the UI.
+        - This should be fully automated, no manual edits needed.
+
+---
+
+5️⃣ Error Handling:
+    - In `Transcriber.js`:
+        - Implement a retry mechanism for API calls:
+            - Retry up to **3 times** with a 1-second delay between attempts.
+            - If it fails after 3 tries, display a clear error message in the UI.
+    - In `Recorder.js`:
+        - Handle microphone disconnects gracefully.
+        - Display a popup or alert if the microphone is disconnected.
+
+---
+
+6️⃣ Deployment and Testing:
+    - Test thoroughly to ensure:
+        - Real-time text updates are visible in the UI.
+        - Segments are streamed to OpenAI Whisper without delay.
+        - Duplicate lines are cleaned up before display.
+        - Microphone access is reliable and reconnects if interrupted.
+    - Prepare the app for deployment on Replit with proper microphone access.
+
+---
+
+Your job is to:
+    - Correctly implement this logic in the existing components.
+    - Ensure that each chunk of audio is processed in real-time.
+    - Verify that the UI is fully interactive and responsive.
+    - Test for synchronization, duplicate removal, and error handling.
