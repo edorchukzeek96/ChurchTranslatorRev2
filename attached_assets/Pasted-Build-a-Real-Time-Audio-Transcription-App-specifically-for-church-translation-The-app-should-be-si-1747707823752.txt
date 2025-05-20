@@ -1,0 +1,73 @@
+Build a Real-Time Audio Transcription App specifically for church translation. 
+The app should be simple, modular, and well-structured across multiple files. 
+It should fully function and be scalable. Follow this structure and logic strictly:
+
+---
+
+1️⃣ Project Structure:
+    /src
+    ├── App.js                → Main UI and application logic
+    ├── components
+    │   ├── Recorder.js       → Manages microphone access and audio recording
+    │   ├── Transcriber.js    → Handles OpenAI Whisper API calls
+    │   ├── TextCleaner.js    → Removes overlapping text duplicates
+    │   └── UIControls.js     → Start/Stop buttons and status indicators
+    └── styles
+        └── App.css           → Basic styling for UI
+        
+    - App.js → Main UI layout, imports all components.
+    - Recorder.js → Manages MediaRecorder and segmentation logic.
+    - Transcriber.js → Sends audio chunks to OpenAI Whisper and updates the UI.
+    - TextCleaner.js → Cleans up overlapping text automatically.
+    - UIControls.js → Handles Start/Stop buttons and displays status.
+    - App.css → Styles for the application.
+
+---
+
+2️⃣ App Logic:
+    - Audio Capture:
+        - Use MediaRecorder to record in 5-second chunks with 500ms overlap.  
+        - Automatically buffer segments for smooth playback.
+    
+    - Transcription:
+        - Send each chunk to OpenAI Whisper API asynchronously.  
+        - Update the UI as each transcription completes.  
+    
+    - UI Controls:
+        - Clear Start/Stop buttons directly linked to the recorder.  
+        - Status indicators: "Recording...", "Transcribing...", and "Complete".
+    
+    - Duplicate Removal:
+        - Automatically clean up overlapping segments using TextCleaner.js.  
+        - No manual editing—just clean and readable text.
+    
+    - Error Handling:
+        - Handle microphone access issues gracefully.  
+        - Display clear error messages if API fails.  
+        - Retry failed transcriptions up to 3 times before stopping.
+
+---
+
+3️⃣ User Interface Design:
+    - Clean, responsive, and mobile-friendly.  
+    - Auto-scroll to the latest transcription line.  
+    - Display latency and status in real-time.
+
+---
+
+4️⃣ Deployment:
+    - Should be fully deployable on Replit.  
+    - Compatible with major browsers (Chrome, Firefox).  
+    - Easy microphone access for live recording.  
+
+---
+
+5️⃣ Future Scalability:
+    - Modular to add:  
+        - Multi-language support.  
+        - Real-time live streaming.  
+        - Audio download of translated segments.  
+
+---
+
+Build this application with simplicity, clarity, and proper documentation. All components should be isolated and imported cleanly into App.js. Ensure that the Start/Stop logic is intuitive and fully functional.
