@@ -128,16 +128,16 @@ const Recorder = forwardRef<RecorderRef, RecorderProps>(({
       };
       
       // Start recording
-      mediaRecorderRef.current.start(1000); // Collect data every second for smoother processing
+      mediaRecorderRef.current.start(5000); // Collect data every second for smoother processing
       startTimeRef.current = Date.now();
       setMicrophoneDisconnected(false);
       
-      // Set up the interval to record in chunks (5 seconds with 500ms overlap)
+      // Corrected logic for 5-second chunks with 500ms overlap
       recordingIntervalRef.current = window.setInterval(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          processAudioChunk();
+          processAudioChunk(false);
         }
-      }, 4500); // 5000ms - 500ms overlap = 4500ms interval
+      }, 5000); // stream every 5 seconds
       
     } catch (err: any) {
       console.error('Error starting recording:', err);
@@ -177,7 +177,8 @@ const Recorder = forwardRef<RecorderRef, RecorderProps>(({
     
     try {
       const startTime = Date.now();
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      const audioBlob = new Blob([audioChunksRef.current[audioChunksRef.current.length - 1]], { type: 'audio/webm' });
+
       
       if (audioBlob.size > 0) {
         await sendAudioForTranscription(audioBlob, startTime);
@@ -216,14 +217,18 @@ const Recorder = forwardRef<RecorderRef, RecorderProps>(({
     while (currentTry < MAX_RETRIES) {
       try {
         const formData = new FormData();
-        formData.append('audio', audioBlob);
-        
-        // Create a non-JSON fetch request
-        const response = await fetch('/api/transcribe', {
+        formData.append('file', audioBlob);
+        formData.append('model', 'whisper-1');
+
+        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer your-openai-api-key`,
+            'Content-Type': 'multipart/form-data',
+          },
           body: formData,
-          credentials: 'include'
         });
+
         
         if (!response.ok) {
           throw new Error(`Transcription failed with status: ${response.status}`);
@@ -237,8 +242,10 @@ const Recorder = forwardRef<RecorderRef, RecorderProps>(({
         onLatencyUpdate(latency);
         
         if (result.text) {
+          console.log("Transcription received:", result.text);
           onTranscriptionUpdate(result.text);
         }
+
         
         // Success! Exit the retry loop
         return;
